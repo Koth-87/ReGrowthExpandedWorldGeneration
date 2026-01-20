@@ -8,6 +8,7 @@
     <li>1.3</li>
     <li>1.4</li>
     <li>1.5</li>
+    <li>1.6</li>
   </supportedVersions>
   <modDependencies>
     <li>
@@ -22,7 +23,7 @@
     <li>Mlie.RoadsOfTheRim</li>
     <li>Oblitus.MyLittlePlanet</li>
   </loadAfter>
-  <description>[img]https://i.imgur.com/buuPQel.png[/img]
+  <description>[img]https://img.litet.net/logos/Info.png[/img]
 Update of Helixien, Taranchuks mod
 https://steamcommunity.com/sharedfiles/filedetails/?id=2607979870
 with permission
@@ -31,20 +32,20 @@ with permission
 - Added a randomizer button for the world-conditions
 - German translation added, thank you triestar1!
 
-[img]https://i.imgur.com/pufA0kM.png[/img]
+[img]https://img.litet.net/logos/Notice.png[/img]
 
 [table]
     [tr]
-        [td][url=https://dsc.gg/mlie][img]https://i.imgur.com/zdzzBrc.png[/img][/url][/td]
-        [td][url=https://github.com/emipa606/ReGrowthExpandedWorldGeneration][img]https://i.imgur.com/kTkpTOE.png[/img][/url][/td]
+        [td][url=https://discord.gg/h5TY6DA][img]https://img.litet.net/logos/Discord.png[/img][/url][/td]
+        [td][url=https://github.com/emipa606/ReGrowthExpandedWorldGeneration][img]https://img.litet.net/logos/Github.png[/img][/url][/td]
     [/tr]
     [tr]
-        [td][img]https://i.imgur.com/kbYsPSO.png[/img][/td]
-        [td][img]https://i.imgur.com/Be8E2qJ.png[/img][/td]
+        [td][img]https://img.litet.net/logos/AddMayWork.png[/img][/td]
+        [td][img]https://img.litet.net/logos/RemoveMayWork.png[/img][/td]
     [/tr]
 [/table]
 	
-[img]https://i.imgur.com/Z4GOv8H.png[/img]
+[img]https://img.litet.net/logos/OriginalDescription.png[/img]
 [b]UPDATE 07.04.2022:[/b] As of now this mod is officially discontinued and will not receive any updates or bug fixies. At the same time, I am making the mod "open-source", for a lack of better words, meaning anyone can change, expand and re-upload the mod as long as you:
 
 - Keep the name
@@ -54,7 +55,7 @@ with permission
 The entire mod, including code, can be found here:
 [url=https://github.com/Helixien/ReGrowth-Expanded-World-Generation]https://github.com/Helixien/ReGrowth-Expanded-World-Generation[/url]
 
-[img]https://i.imgur.com/7w5OFgC.png[/img]
+[img]https://img.litet.net/7w5OFgC.png[/img]
 
 You can see all changes in the changelog tab!
 
@@ -63,7 +64,7 @@ You can see all changes in the changelog tab!
 
 The mod is in beta! It works fine 95% of the time, but there might be bugs we haven't yet found and some things probably could be fine tuned and optimized. 
 
-[img]https://i.imgur.com/Pe8cTXc.png[/img]
+[img]https://img.litet.net/Pe8cTXc.png[/img]
 
 [h1]What is ReGrowth: Expanded World Generation?[/h1]
 
@@ -73,7 +74,7 @@ If your answer is yes, then [b]ReGrowth: Expanded World Generation[/b] is the mo
 
 Enjoy!
 
-[img]https://i.imgur.com/uWt5Qba.png[/img]
+[img]https://img.litet.net/uWt5Qba.png[/img]
 
 Here is an overview over everything you can control with [b]ReGrowth: Expanded World Generation[/b]:
 
@@ -101,7 +102,7 @@ It does however allow you to see how the planet you are making would look with y
 
 I also want to be clear that this mod has NO training wheels. You can go crazy with it. If you make a sea ice world and set the temps to maximum you get 70 °C ice sheets. You can do whatever you want!
 
-[img]https://i.imgur.com/QnAx6zL.png[/img]
+[img]https://img.litet.net/QnAx6zL.png[/img]
 
 We tried to make it work with as many other mods we could right away, here is a list:
 
@@ -116,7 +117,7 @@ However there are mods that are, as of now, not working with it:
 
 - Prepare Landing: We tried to make it work, but they must look into it from their side.
 
-[img]https://i.imgur.com/toezrwG.png[/img]
+[img]https://img.litet.net/toezrwG.png[/img]
 
 [b]Q: Can this mod be added to an existing save?[/b]
 A: Yes, but it doesnt really help you in any way.
@@ -142,26 +143,26 @@ A: Yes, altho there might be some issues left we haven't found. Please report th
 [b]Q: Does it require ReGrowth: Core?[/b]
 A: No!
 
-[img]https://i.imgur.com/fXBb4DJ.png[/img]
+[img]https://img.litet.net/fXBb4DJ.png[/img]
 
 - C# Code done by Taranchuk. This is his masterpiece, I just had the idea! If you love the mod, please show him your love!
 
 Rimworld is owned by Tynan Sylvester and he wants you to finally buy his book!  
 
 
-[url=https://discord.gg/7befJWr9xS][img]https://i.imgur.com/cfoFEMA.png[/img][/url]
+[url=https://discord.gg/7befJWr9xS][img]https://img.litet.net/cfoFEMA.png[/img][/url]
 
-[img]https://i.imgur.com/PwoNOj4.png[/img]
+[img]https://img.litet.net/logos/ReportingIssues.png[/img]
 [list]
 [*] See if the the error persists if you just have this mod and its requirements active.
 [*] If not, try adding your other mods until it happens again.
-[*] Post your error-log using [url=https://steamcommunity.com/workshop/filedetails/?id=818773962]HugsLib[/url] or the standalone [url=https://steamcommunity.com/sharedfiles/filedetails/?id=2873415404]Uploader[/url] and command Ctrl+F12
+[*] Always post your log using the [url=https://steamcommunity.com/sharedfiles/filedetails/?id=2873415404]Log Uploader[/url]
 [*] For best support, please use the Discord-channel for error-reporting.
 [*] Do not report errors by making a discussion-thread, I get no notification of that.
 [*] If you have the solution for a problem, please post it to the GitHub repository.
 [*] Use [url=https://github.com/RimSort/RimSort/releases/latest]RimSort[/url] to sort your mods
-[/list]
+[/list] 
 
-[url=https://steamcommunity.com/sharedfiles/filedetails/changelog/2791768296][img]https://img.shields.io/github/v/release/emipa606/ReGrowthExpandedWorldGeneration?label=latest%20version&amp;style=plastic&amp;color=9f1111&amp;labelColor=black[/img][/url]</description>
-  <modVersion IgnoreIfNoMatchingField="True">1.5.2</modVersion>
+[url=https://steamcommunity.com/sharedfiles/filedetails/changelog/2791768296][img]https://img.shields.io/github/v/release/emipa606/ReGrowthExpandedWorldGeneration?label=latest%20version&amp;style=plastic&amp;color=9f1111&amp;labelColor=black[/img][/url] | tags:  preview,  preset</description>
+  <modVersion IgnoreIfNoMatchingField="True">1.6.0</modVersion>
 </ModMetaData>

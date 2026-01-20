@@ -158,7 +158,7 @@ public class WorldGenerationPreset : IExposable
         }
     }
 
-    public T RandomEnum<T>()
+    private static T RandomEnum<T>()
     {
         var values = (T[])Enum.GetValues(typeof(T));
         return values[new Random(Guid.NewGuid().GetHashCode()).Next(0, values.Length)];

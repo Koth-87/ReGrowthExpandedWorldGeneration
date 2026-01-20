@@ -17,8 +17,8 @@ namespace RGExpandedWorldGeneration;
 [HarmonyPatch(typeof(Page_CreateWorldParams), nameof(Page_CreateWorldParams.DoWindowContents))]
 public static class Page_CreateWorldParams_DoWindowContents
 {
-    public const int WorldCameraHeight = 315;
-    public const int WorldCameraWidth = 315;
+    private const int WorldCameraHeight = 315;
+    private const int WorldCameraWidth = 315;
 
     private static readonly Color BackgroundColor = new Color32(byte.MaxValue, byte.MaxValue, byte.MaxValue, 15);
     private static readonly Texture2D GeneratePreview = ContentFinder<Texture2D>.Get("UI/GeneratePreview");
@@ -29,23 +29,31 @@ public static class Page_CreateWorldParams_DoWindowContents
 
     public static WorldGenerationPreset tmpWorldGenerationPreset;
 
-    public static Vector2 scrollPosition;
+    private static Vector2 scrollPosition;
 
     public static bool dirty;
 
-    public static Texture2D worldPreview;
+    private static Texture2D worldPreview;
 
     private static World threadedWorld;
 
     public static Thread thread;
 
-    public static int updatePreviewCounter;
+    private static int updatePreviewCounter;
 
     private static float texSpinAngle;
 
+    public static bool startFresh;
+
+    private static volatile bool shouldCancelGeneration;
+
+    // Preview progress tracking
+    private static volatile int previewStepsDone;
+    private static volatile int previewStepsTotal;
+
     private static readonly HashSet<WorldGenStepDef> worldGenStepDefs =
     [
-        DefDatabase<WorldGenStepDef>.GetNamed("Components"),
+        DefDatabase<WorldGenStepDef>.GetNamed("Tiles"),
         DefDatabase<WorldGenStepDef>.GetNamed("Terrain"),
         DefDatabase<WorldGenStepDef>.GetNamed("Lakes"),
         DefDatabase<WorldGenStepDef>.GetNamed("Rivers"),
@@ -55,20 +63,22 @@ public static class Page_CreateWorldParams_DoWindowContents
     ];
 
     public static bool generatingWorld;
+    private static List<GameSetupStepDef> cachedGenSteps;
+
+    private static List<GameSetupStepDef> GameSetupStepsInOrder => cachedGenSteps ?? (cachedGenSteps =
+        (from x in DefDatabase<GameSetupStepDef>.AllDefs
+            orderby x.order, x.index
+            select x).ToList());
+
 
     private static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
     {
         var planetCoverage =
             AccessTools.Field(typeof(Page_CreateWorldParams), nameof(Page_CreateWorldParams.planetCoverage));
         var doGlobeCoverageSliderMethod =
-            AccessTools.Method(typeof(Page_CreateWorldParams_DoWindowContents), "DoGlobeCoverageSlider");
+            AccessTools.Method(typeof(Page_CreateWorldParams_DoWindowContents), nameof(DoGlobeCoverageSlider));
         var doGuiMethod = AccessTools.Method(typeof(Page_CreateWorldParams_DoWindowContents), nameof(DoGui));
         var endGroupMethod = AccessTools.Method(typeof(Widgets), nameof(Widgets.EndGroup));
-        var biotechCheckMethod = AccessTools.PropertyGetter(typeof(ModsConfig), nameof(ModsConfig.BiotechActive));
-        if (biotechCheckMethod == null)
-        {
-            Log.Message("No biotechCheckMethod found");
-        }
 
         var codes = instructions.ToList();
         var found = false;
@@ -98,16 +108,42 @@ public static class Page_CreateWorldParams_DoWindowContents
                 continue;
             }
 
-            switch (ModsConfig.BiotechActive)
+            // Inject doGuiMethod before EndGroup() call
+            // Look backwards from EndGroup to find the proper local variable indices
+            if (!codes[i].Calls(endGroupMethod))
             {
-                case true when i + 1 < codes.Count && !codes[i + 1].Calls(endGroupMethod):
-                case false when i + 2 < codes.Count && !codes[i + 2].Calls(biotechCheckMethod):
+                continue;
+            }
+
+            // Search backwards for Ldloca_S and Ldloc_S to find num and width2 variable indices
+            byte numIndex = 7; // Default fallback
+            byte width2Index = 8; // Default fallback
+
+            for (var j = i - 1; j >= Math.Max(0, i - 20); j--)
+            {
+                if (codes[j].opcode != OpCodes.Ldloc_S || codes[j].operand is not byte locIndex)
+                {
                     continue;
+                }
+
+                width2Index = locIndex;
+                break;
+            }
+
+            for (var j = i - 1; j >= Math.Max(0, i - 30); j--)
+            {
+                if (codes[j].opcode != OpCodes.Ldloca_S || codes[j].operand is not byte refIndex)
+                {
+                    continue;
+                }
+
+                numIndex = refIndex;
+                break;
             }
 
             yield return new CodeInstruction(OpCodes.Ldarg_0);
-            yield return new CodeInstruction(OpCodes.Ldloca_S, 7);
-            yield return new CodeInstruction(OpCodes.Ldloc_S, 8);
+            yield return new CodeInstruction(OpCodes.Ldloca_S, numIndex);
+            yield return new CodeInstruction(OpCodes.Ldloc_S, width2Index);
             yield return new CodeInstruction(OpCodes.Call, doGuiMethod);
             found = true;
         }
@@ -145,6 +181,8 @@ public static class Page_CreateWorldParams_DoWindowContents
             if ((Widgets.ButtonText(rect2, nextLabel) || doNextOnKeypress && KeyBindingDefOf.Accept.KeyDownEvent) &&
                 (bool)canDoNextMethod.Invoke(window, []))
             {
+                Log.Message("[RG] DoBottomButtons: Next button pressed, setting nextPressed to true");
+                startFresh = true;
                 doNextMethod.Invoke(window, []);
             }
 
@@ -195,7 +233,27 @@ public static class Page_CreateWorldParams_DoWindowContents
 
     private static void Postfix(Page_CreateWorldParams __instance)
     {
-        DoWorldPreviewArea(__instance);
+        if (startFresh)
+        {
+            return;
+        }
+
+        doWorldPreviewArea(__instance);
+    }
+
+    private static void Prefix()
+    {
+        // If returning from next page, force a complete preview regeneration
+        if (!startFresh)
+        {
+            return;
+        }
+
+        Log.Message("[RG] Postfix: Detected fresh start, forcing preview regeneration");
+        startFresh = false;
+        dirty = true;
+        updatePreviewCounter = 0;
+        Find.GameInitData.ResetWorldRelatedMapInitData();
     }
 
     private static void DoGlobeCoverageSlider(Page_CreateWorldParams window, Rect rect)
@@ -211,12 +269,9 @@ public static class Page_CreateWorldParams_DoWindowContents
 
     private static void DoGui(Page_CreateWorldParams window, ref float num, float width2)
     {
-        UpdateCurPreset(window);
-        DoSlider(0, ref num, width2, "RG.RiverDensity".Translate(), ref tmpWorldGenerationPreset.riverDensity,
-            "None".Translate());
-        DoSlider(0, ref num, width2, "RG.MountainDensity".Translate(), ref tmpWorldGenerationPreset.mountainDensity,
-            "None".Translate());
-        DoSlider(0, ref num, width2, "RG.SeaLevel".Translate(), ref tmpWorldGenerationPreset.seaLevel,
+        updateCurPreset(window);
+        num += 40f;
+        doSlider(0, ref num, width2, "RG.RiverDensity".Translate(), ref tmpWorldGenerationPreset.riverDensity,
             "None".Translate());
 
         Rect labelRect;
@@ -234,7 +289,7 @@ public static class Page_CreateWorldParams_DoWindowContents
 
         if (RGExpandedWorldGenerationSettingsMod.settings.showPreview)
         {
-            labelRect = new Rect(0f, num + 64, 80, 30);
+            labelRect = new Rect(0f, num + 40, 80, 30);
             Widgets.Label(labelRect, "RG.Biomes".Translate());
             var outRect = new Rect(labelRect.x, labelRect.yMax - 3, width2 + 195,
                 WorldFactionsUIUtility_DoWindowContents.LowerWidgetHeight - 50);
@@ -248,7 +303,7 @@ public static class Page_CreateWorldParams_DoWindowContents
             num = outRect.y + 15;
             foreach (var biomeDef in DefDatabase<BiomeDef>.AllDefs.OrderBy(x => x.label ?? x.defName))
             {
-                DoBiomeSliders(biomeDef, 10, ref num, biomeDef.label?.CapitalizeFirst() ?? biomeDef.defName);
+                doBiomeSliders(biomeDef, 10, ref num, biomeDef.label?.CapitalizeFirst() ?? biomeDef.defName);
             }
 
             num -= 50f;
@@ -265,9 +320,13 @@ public static class Page_CreateWorldParams_DoWindowContents
         }
         else
         {
-            DoSlider(0, ref num, width2, "RG.AncientRoadDensity".Translate(),
+            doSlider(0, ref num, width2, "RG.MountainDensity".Translate(), ref tmpWorldGenerationPreset.mountainDensity,
+                "None".Translate());
+            doSlider(0, ref num, width2, "RG.SeaLevel".Translate(), ref tmpWorldGenerationPreset.seaLevel,
+                "None".Translate());
+            doSlider(0, ref num, width2, "RG.AncientRoadDensity".Translate(),
                 ref tmpWorldGenerationPreset.ancientRoadDensity, "None".Translate());
-            DoSlider(0, ref num, width2, "RG.FactionRoadDensity".Translate(),
+            doSlider(0, ref num, width2, "RG.FactionRoadDensity".Translate(),
                 ref tmpWorldGenerationPreset.factionRoadDensity, "None".Translate());
             if (!ModCompat.MyLittlePlanetActive)
             {
@@ -292,11 +351,10 @@ public static class Page_CreateWorldParams_DoWindowContents
         {
             RGExpandedWorldGenerationSettings.curWorldGenerationPreset = tmpWorldGenerationPreset.MakeCopy();
             updatePreviewCounter = 60;
-            if (thread != null)
+            if (thread is { IsAlive: true })
             {
-                thread.Abort();
-                thread.Join(1000);
-                thread = null;
+                Log.Message("[RG] DoGui: Requesting cancellation of current world generation");
+                shouldCancelGeneration = true;
             }
         }
 
@@ -304,8 +362,16 @@ public static class Page_CreateWorldParams_DoWindowContents
         {
             if (updatePreviewCounter == 0)
             {
-                StartRefreshWorldPreview(window);
+                startRefreshWorldPreview(window);
             }
+        }
+        else if (!thread.IsAlive && shouldCancelGeneration)
+        {
+            Log.Message("[RG] DoGui: Previous thread finished, starting new generation immediately");
+            thread = null;
+            shouldCancelGeneration = false;
+            updatePreviewCounter = 0;
+            startRefreshWorldPreview(window);
         }
 
         if (updatePreviewCounter > -2)
@@ -314,18 +380,18 @@ public static class Page_CreateWorldParams_DoWindowContents
         }
     }
 
-    private static void DoWorldPreviewArea(Page_CreateWorldParams window)
+    private static void doWorldPreviewArea(Page_CreateWorldParams window)
     {
         var previewAreaRect = new Rect(545, 10, WorldCameraHeight, WorldCameraWidth);
         var generateButtonRect = new Rect(previewAreaRect.xMax - 35, previewAreaRect.y, 35, 35);
 
         var hideButtonRect = generateButtonRect;
         hideButtonRect.x += generateButtonRect.width * 1.1f;
-        DrawHidePreviewButton(window, hideButtonRect);
+        drawHidePreviewButton(window, hideButtonRect);
         Rect labelRect;
         if (RGExpandedWorldGenerationSettingsMod.settings.showPreview)
         {
-            DrawGeneratePreviewButton(window, generateButtonRect);
+            drawGeneratePreviewButton(window, generateButtonRect);
             var numAttempt = 0;
             if (thread is null && Find.World != null && Find.World.info.name != "DefaultWorldName" ||
                 worldPreview != null)
@@ -334,8 +400,8 @@ public static class Page_CreateWorldParams_DoWindowContents
                 {
                     while (numAttempt < 5)
                     {
-                        worldPreview = GetWorldCameraPreview(WorldCameraHeight, WorldCameraWidth);
-                        if (IsBlack(worldPreview))
+                        worldPreview = getWorldCameraPreview(WorldCameraHeight, WorldCameraWidth);
+                        if (worldPreview == null || isBlack(worldPreview))
                         {
                             numAttempt++;
                         }
@@ -354,14 +420,22 @@ public static class Page_CreateWorldParams_DoWindowContents
             }
 
             var numY = previewAreaRect.yMax - 40;
-            if (tmpWorldGenerationPreset == null)
+            if (tmpWorldGenerationPreset is null)
             {
                 tmpWorldGenerationPreset = new WorldGenerationPreset();
+                tmpWorldGenerationPreset.Init();
             }
 
-            DoSlider(previewAreaRect.x - 55, ref numY, 256, "RG.AncientRoadDensity".Translate(),
+            doSlider(previewAreaRect.x - 55, ref numY, 256, "RG.MountainDensity".Translate(),
+                ref tmpWorldGenerationPreset.mountainDensity,
+                "None".Translate());
+            doSlider(previewAreaRect.x - 55, ref numY, 256, "RG.SeaLevel".Translate(),
+                ref tmpWorldGenerationPreset.seaLevel,
+                "None".Translate());
+
+            doSlider(previewAreaRect.x - 55, ref numY, 256, "RG.AncientRoadDensity".Translate(),
                 ref tmpWorldGenerationPreset.ancientRoadDensity, "None".Translate());
-            DoSlider(previewAreaRect.x - 55, ref numY, 256, "RG.FactionRoadDensity".Translate(),
+            doSlider(previewAreaRect.x - 55, ref numY, 256, "RG.FactionRoadDensity".Translate(),
                 ref tmpWorldGenerationPreset.factionRoadDensity, "None".Translate());
 
             if (!ModCompat.MyLittlePlanetActive)
@@ -380,6 +454,13 @@ public static class Page_CreateWorldParams_DoWindowContents
             return;
         }
 
+        // Ensure tmpWorldGenerationPreset is initialized before using it
+        if (tmpWorldGenerationPreset is null)
+        {
+            tmpWorldGenerationPreset = new WorldGenerationPreset();
+            tmpWorldGenerationPreset.Init();
+        }
+
         labelRect = new Rect(previewAreaRect.x - 55, previewAreaRect.y + hideButtonRect.height,
             455, 25);
         Widgets.Label(labelRect, "RG.Biomes".Translate());
@@ -394,7 +475,7 @@ public static class Page_CreateWorldParams_DoWindowContents
         var num = outRect.y + 15;
         foreach (var biomeDef in DefDatabase<BiomeDef>.AllDefs.OrderBy(x => x.label ?? x.defName))
         {
-            DoBiomeSliders(biomeDef, labelRect.x + 10, ref num,
+            doBiomeSliders(biomeDef, labelRect.x + 10, ref num,
                 biomeDef.label?.CapitalizeFirst() ?? biomeDef.defName);
         }
 
@@ -427,21 +508,22 @@ public static class Page_CreateWorldParams_DoWindowContents
         }
     }
 
-    private static bool IsBlack(Texture2D texture)
+    private static bool isBlack(Texture2D texture)
     {
         var pixel = texture.GetPixel(texture.width / 2, texture.height / 2);
         return pixel.r <= 0 && pixel is { g: <= 0, b: <= 0 };
     }
 
-    private static void StartRefreshWorldPreview(Page_CreateWorldParams window)
+    private static void startRefreshWorldPreview(Page_CreateWorldParams window)
     {
         dirty = false;
         updatePreviewCounter = -1;
+
         if (thread is { IsAlive: true })
         {
-            thread.Abort();
-            thread.Join(1000);
-            generatingWorld = false;
+            Log.Message("[RG] startRefreshWorldPreview: Thread already running, requesting cancellation");
+            shouldCancelGeneration = true;
+            return;
         }
 
         if (!RGExpandedWorldGenerationSettingsMod.settings.showPreview)
@@ -449,11 +531,17 @@ public static class Page_CreateWorldParams_DoWindowContents
             return;
         }
 
-        thread = new Thread(delegate() { GenerateWorld(window); });
+        // reset progress
+        previewStepsDone = 0;
+        previewStepsTotal = 0;
+
+        Log.Message("[RG] startRefreshWorldPreview: Starting new world generation thread");
+        shouldCancelGeneration = false;
+        thread = new Thread(delegate() { generateWorld(window); });
         thread.Start();
     }
 
-    private static void DrawHidePreviewButton(Page_CreateWorldParams window, Rect hideButtonRect)
+    private static void drawHidePreviewButton(Page_CreateWorldParams window, Rect hideButtonRect)
     {
         var buttonTexture = Visible;
         if (!RGExpandedWorldGenerationSettingsMod.settings.showPreview)
@@ -468,7 +556,7 @@ public static class Page_CreateWorldParams_DoWindowContents
             RGExpandedWorldGenerationSettingsMod.settings.Write();
             if (RGExpandedWorldGenerationSettingsMod.settings.showPreview)
             {
-                StartRefreshWorldPreview(window);
+                startRefreshWorldPreview(window);
             }
         }
 
@@ -476,7 +564,7 @@ public static class Page_CreateWorldParams_DoWindowContents
         TooltipHandler.TipRegion(hideButtonRect, "RG.HidePreview".Translate());
     }
 
-    private static void DrawGeneratePreviewButton(Page_CreateWorldParams window, Rect generateButtonRect)
+    private static void drawGeneratePreviewButton(Page_CreateWorldParams window, Rect generateButtonRect)
     {
         if (thread != null)
         {
@@ -486,6 +574,20 @@ public static class Page_CreateWorldParams_DoWindowContents
             }
 
             texSpinAngle += 3;
+        }
+
+        // Draw progress bar to the left of the spinner when generating
+        if (thread != null)
+        {
+            var pct = 0f;
+            var total = previewStepsTotal;
+            if (total > 0)
+            {
+                pct = Mathf.Clamp01((float)previewStepsDone / total);
+            }
+
+            Widgets.FillableBar(generateButtonRect, pct);
+            TooltipHandler.TipRegion(generateButtonRect, total > 0 ? $"{previewStepsDone}/{previewStepsTotal}" : "");
         }
 
         if (Prefs.UIScale != 1f)
@@ -504,7 +606,7 @@ public static class Page_CreateWorldParams_DoWindowContents
             {
                 if (Event.current.button == 0)
                 {
-                    StartRefreshWorldPreview(window);
+                    startRefreshWorldPreview(window);
                     Event.current.Use();
                 }
             }
@@ -515,120 +617,231 @@ public static class Page_CreateWorldParams_DoWindowContents
             return;
         }
 
-        InitializeWorld();
+        initializeWorld();
         threadedWorld = null;
         thread = null;
         dirty = true;
         generatingWorld = false;
     }
 
-    private static void InitializeWorld()
+    private static void initializeWorld()
     {
-        var layers = (List<WorldLayer>)AccessTools.Field(typeof(WorldRenderer), nameof(WorldRenderer.layers))
-            .GetValue(Find.World.renderer);
+        // Regenerate critical draw layers if available
+        var layers = Find.World.renderer.AllDrawLayers;
         foreach (var layer in layers)
         {
-            if (layer is WorldLayer_Hills || layer is WorldLayer_Rivers || layer is WorldLayer_Roads ||
-                layer is WorldLayer_Terrain)
+            if (layer is WorldDrawLayer_Hills or WorldDrawLayer_Rivers or WorldDrawLayer_Roads
+                or WorldDrawLayer_Terrain)
             {
                 layer.RegenerateNow();
             }
         }
 
+        // Safely finalize world components if a world exists
+        if (Find.World == null || Find.World.components == null)
+        {
+            return;
+        }
+
         var comps = Find.World.components.Where(x => x.GetType().Name == "TacticalGroups");
         foreach (var comp in comps)
         {
-            comp.FinalizeInit();
+            try
+            {
+                comp.FinalizeInit(false);
+            }
+            catch (Exception ex)
+            {
+                Log.Warning($"[RG] initializeWorld: Error finalizing component {comp.GetType().Name}: {ex.Message}");
+            }
         }
     }
 
-    public static void GenerateWorld(Page_CreateWorldParams page)
+    private static void generateWorld(Page_CreateWorldParams page)
     {
         generatingWorld = true;
-        Rand.PushState();
+        Log.Message("[RG] generateWorld: Starting world generation");
 
-        var seed = Rand.Seed = GenText.StableStringHash(page.seedString);
-        var prevFaction = Find.World?.factionManager?.OfPlayer;
         var prevProgramState = Current.ProgramState;
-        var prevGrid = Find.World?.grid;
-        Current.ProgramState = ProgramState.Entry;
-        if (prevFaction is null)
-        {
-            Find.GameInitData.ResetWorldRelatedMapInitData();
-        }
+        var prevFaction = Find.World?.factionManager?.OfPlayer;
+
+        Rand.PushState();
 
         try
         {
+            Log.Message("[RG] generateWorld: Setting seed");
+            var seed = Rand.Seed = GenText.StableStringHash(page.seedString);
+            Current.ProgramState = ProgramState.Entry;
+
+            Log.Message("[RG] generateWorld: Previous state saved");
+
+            // Clear existing world reference to ensure clean generation
+            if (Current.Game.World != null && Current.Game.World != Find.World)
+            {
+                Log.Message("[RG] generateWorld: Clearing previous preview world from Current.Game.World");
+                Current.Game.World = null;
+            }
+
+            if (prevFaction is null)
+            {
+                Log.Message("[RG] generateWorld: Resetting world-related map init data");
+                Find.GameInitData.ResetWorldRelatedMapInitData();
+            }
+
+            Log.Message("[RG] generateWorld: Creating new world instance");
             Current.CreatingWorld = new World
             {
                 renderer = new WorldRenderer(),
                 UI = new WorldInterface(),
                 factionManager = new FactionManager(),
-                grid = prevGrid
+                info =
+                {
+                    seedString = page.seedString,
+                    planetCoverage = page.planetCoverage,
+                    overallRainfall = page.rainfall,
+                    overallTemperature = page.temperature,
+                    overallPopulation = page.population,
+                    pollution = ModsConfig.BiotechActive ? page.pollution : 0f,
+                    name = NameGenerator.GenerateName(RulePackDefOf.NamerWorld)
+                }
             };
 
+            if (Current.CreatingWorld == null)
+            {
+                Log.Error("[RG] generateWorld: Failed to create Current.CreatingWorld");
+                return;
+            }
+
+            Log.Message("[RG] generateWorld: Setting up world properties");
             Current.CreatingWorld.factionManager.ofPlayer = prevFaction;
             Current.CreatingWorld.dynamicDrawManager = new WorldDynamicDrawManager();
             Current.CreatingWorld.ticksAbsCache = new ConfiguredTicksAbsAtGameStartCache();
             Current.Game.InitData.playerFaction = prevFaction;
-            Current.CreatingWorld.info.seedString = page.seedString;
 
-            Current.CreatingWorld.info.planetCoverage = page.planetCoverage;
-            Current.CreatingWorld.info.overallRainfall = page.rainfall;
-            Current.CreatingWorld.info.overallTemperature = page.temperature;
-            Current.CreatingWorld.info.overallPopulation = page.population;
+            Log.Message($"[RG] generateWorld: World name set to {Current.CreatingWorld.info.name}");
 
-            if (ModsConfig.BiotechActive)
+            // Run game setup steps - this creates the grid and initializes world structure
+            Log.Message("[RG] generateWorld: Running game setup steps");
+            previewStepsDone = 0;
+            previewStepsTotal = GameSetupStepsInOrder.Count;
+            foreach (var item in GameSetupStepsInOrder)
             {
-                Current.CreatingWorld.info.pollution = page.pollution;
+                if (shouldCancelGeneration)
+                {
+                    Log.Message("[RG] generateWorld: Cancellation requested during setup steps");
+                    return;
+                }
+
+                Rand.Seed = Gen.HashCombineInt(seed, item.setupStep.SeedPart);
+                Log.Message($"[RG] generateWorld: Running setup step: {item.defName}");
+                item.setupStep.GenerateFresh();
+                previewStepsDone++;
             }
 
-            Current.CreatingWorld.info.name = NameGenerator.GenerateName(RulePackDefOf.NamerWorld);
-
+            // Check both Current.CreatingWorld.grid and Find.WorldGrid for layers
+            Log.Message("[RG] generateWorld: Starting planet layer generation");
             var tmpGenSteps = new List<WorldGenStepDef>();
-            tmpGenSteps.AddRange(WorldGenerator.GenStepsInOrder);
-            for (var i = 0; i < tmpGenSteps.Count; i++)
-            {
-                try
-                {
-                    Rand.Seed = Gen.HashCombineInt(seed, GetSeedPart(tmpGenSteps, i));
-                    if (!worldGenStepDefs.Contains(tmpGenSteps[i]))
-                    {
-                        continue;
-                    }
 
-                    tmpGenSteps[i].worldGenStep.GenerateFresh(page.seedString);
-                    if (tmpGenSteps[i].defName == "Components" && prevFaction != null)
-                    {
-                        Current.CreatingWorld.factionManager.ofPlayer = prevFaction;
-                    }
-                }
-                catch (Exception ex)
+            // After setup steps, the grid should be available - use whichever one exists
+            var activeGrid = Find.WorldGrid ?? Current.CreatingWorld.grid;
+
+            // Pre-calc total world gen steps for progress
+            try
+            {
+                var totalWorldGenSteps = 0;
+                foreach (var layerKvp in activeGrid.PlanetLayers)
                 {
-                    if (ex is ThreadAbortException)
+                    totalWorldGenSteps += layerKvp.Value.Def.GenStepsInOrder.Count(s => worldGenStepDefs.Contains(s));
+                }
+
+                previewStepsTotal += totalWorldGenSteps;
+            }
+            catch
+            {
+                // ignore counting issues
+            }
+
+            foreach (var planetLayer in activeGrid.PlanetLayers)
+            {
+                if (shouldCancelGeneration)
+                {
+                    Log.Message("[RG] generateWorld: Cancellation requested during planet layer processing");
+                    return;
+                }
+
+                Log.Message($"[RG] generateWorld: Processing planet layer: {planetLayer.Key}");
+                tmpGenSteps.Clear();
+                tmpGenSteps.AddRange(planetLayer.Value.Def.GenStepsInOrder);
+
+                for (var i = 0; i < tmpGenSteps.Count; i++)
+                {
+                    if (shouldCancelGeneration)
                     {
-                        Rand.PopState();
-                        Current.CreatingWorld = null;
-                        generatingWorld = false;
-                        Current.ProgramState = prevProgramState;
+                        Log.Message("[RG] generateWorld: Cancellation requested during gen steps");
                         return;
                     }
-                    else
+
+                    try
                     {
-                        Log.Error($"Error in WorldGenStep: {ex}");
+                        Rand.Seed = Gen.HashCombineInt(seed, getSeedPart(tmpGenSteps, i));
+                        if (!worldGenStepDefs.Contains(tmpGenSteps[i]))
+                        {
+                            continue;
+                        }
+
+                        Log.Message($"[RG] generateWorld: Executing gen step {i}: {tmpGenSteps[i].defName}");
+                        tmpGenSteps[i].worldGenStep.GenerateFresh(page.seedString, planetLayer.Value);
+
+                        if (tmpGenSteps[i].defName == "Tiles" && prevFaction != null)
+                        {
+                            Current.CreatingWorld.factionManager.ofPlayer = prevFaction;
+                        }
+
+                        previewStepsDone++;
+                    }
+                    catch (Exception ex)
+                    {
+                        if (ex is ThreadAbortException)
+                        {
+                            Rand.PopState();
+                            Current.CreatingWorld = null;
+                            generatingWorld = false;
+                            Current.ProgramState = prevProgramState;
+                            return;
+                        }
+                        else
+                        {
+                            Log.Error($"[RG] generateWorld: Error in WorldGenStep {tmpGenSteps[i].defName}: {ex}");
+                        }
                     }
                 }
             }
 
-            threadedWorld = Current.CreatingWorld;
-            Current.Game.World = null;
-            Current.Game.World = threadedWorld;
-            if (Find.World != null)
+            if (shouldCancelGeneration)
             {
-                Find.World.features = new WorldFeatures();
+                Log.Message("[RG] generateWorld: Cancellation requested before finalization");
+                return;
             }
 
+            // Standardize tile data on the correct grid
+            Log.Message("[RG] generateWorld: Standardizing tile data");
+            Rand.Seed = seed;
+            activeGrid.StandardizeTileData();
+
+            Log.Message("[RG] generateWorld: Finalizing world");
+            threadedWorld = Current.CreatingWorld;
+            Current.Game.World = threadedWorld;
+
+            if (Current.Game.World != null)
+            {
+                Current.Game.World.features = new WorldFeatures();
+            }
+
+            Log.Message("[RG] generateWorld: Unloading unused assets");
             MemoryUtility.UnloadUnusedUnityAssets();
+            Log.Message("[RG] generateWorld: World generation completed successfully");
+            // Ensure progress bar completes
+            previewStepsDone = previewStepsTotal;
         }
         catch (Exception ex)
         {
@@ -644,10 +857,6 @@ public static class Page_CreateWorldParams_DoWindowContents
                 Current.ProgramState = prevProgramState;
                 Current.CreatingWorld = null;
             }
-            else
-            {
-                Log.Error($"Error: {ex}");
-            }
         }
         finally
         {
@@ -660,10 +869,11 @@ public static class Page_CreateWorldParams_DoWindowContents
             generatingWorld = false;
             Current.CreatingWorld = null;
             Current.ProgramState = prevProgramState;
+            Log.Message("[RG] generateWorld: Cleanup completed");
         }
     }
 
-    private static int GetSeedPart(List<WorldGenStepDef> genSteps, int index)
+    private static int getSeedPart(List<WorldGenStepDef> genSteps, int index)
     {
         var seedPart = genSteps[index].worldGenStep.SeedPart;
         var num = 0;
@@ -678,8 +888,15 @@ public static class Page_CreateWorldParams_DoWindowContents
         return seedPart + num;
     }
 
-    private static Texture2D GetWorldCameraPreview(int width, int height)
+    private static Texture2D getWorldCameraPreview(int width, int height)
     {
+        // Ensure world and camera exist before attempting to render
+        if (Find.World == null || Find.World.renderer == null || Find.WorldCamera == null || Find.World.UI == null)
+        {
+            Log.Warning("[RG] getWorldCameraPreview: World or camera unavailable, skipping preview render");
+            return null;
+        }
+
         Find.World.renderer.wantedMode = WorldRenderMode.Planet;
         Find.WorldCamera.gameObject.SetActive(true);
         Find.World.UI.Reset();
@@ -697,9 +914,58 @@ public static class Page_CreateWorldParams_DoWindowContents
         Find.WorldCamera.Render();
 
         ExpandableWorldObjectsUtility.ExpandableWorldObjectsUpdate();
-        Find.World.renderer.DrawWorldLayers();
-        Find.World.dynamicDrawManager.DrawDynamicWorldObjects();
-        Find.World.features.UpdateFeatures();
+
+        // Draw world layers, but skip clouds to avoid null reference errors
+        try
+        {
+            foreach (var layer in Find.World.renderer.AllDrawLayers)
+            {
+                // Skip clouds layer as it may not be properly initialized in preview
+                if (layer is WorldDrawLayer_Clouds)
+                {
+                    continue;
+                }
+
+                try
+                {
+                    layer.Render();
+                }
+                catch (Exception ex)
+                {
+                    Log.Warning($"[RG] Error rendering layer {layer.GetType().Name}: {ex.Message}");
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Log.Warning($"[RG] Error during world layer rendering: {ex.Message}");
+        }
+
+        // Draw dynamic objects/features if available
+        try
+        {
+            if (Find.World?.dynamicDrawManager != null)
+            {
+                Find.World.dynamicDrawManager.DrawDynamicWorldObjects();
+            }
+        }
+        catch (Exception ex)
+        {
+            Log.Warning($"[RG] Error drawing dynamic world objects: {ex.Message}");
+        }
+
+        try
+        {
+            if (Find.World?.features != null)
+            {
+                Find.World.features.UpdateFeatures();
+            }
+        }
+        catch (Exception ex)
+        {
+            Log.Warning($"[RG] Error updating world features: {ex.Message}");
+        }
+
         NoiseDebugUI.RenderPlanetNoise();
 
         RenderTexture.active = renderTexture;
@@ -709,11 +975,11 @@ public static class Page_CreateWorldParams_DoWindowContents
         RenderTexture.active = null;
 
         Find.WorldCamera.gameObject.SetActive(false);
-        Find.World.renderer.wantedMode = WorldRenderMode.None;
+        Find.World?.renderer.wantedMode = WorldRenderMode.None;
         return screenShot;
     }
 
-    private static void UpdateCurPreset(Page_CreateWorldParams window)
+    private static void updateCurPreset(Page_CreateWorldParams window)
     {
         if (tmpWorldGenerationPreset is null)
         {
@@ -733,9 +999,17 @@ public static class Page_CreateWorldParams_DoWindowContents
         {
             tmpWorldGenerationPreset.pollution = window.pollution;
         }
+
+        // Ensure all biomes have entries in the dictionaries
+        foreach (var biomeDef in DefDatabase<BiomeDef>.AllDefs)
+        {
+            tmpWorldGenerationPreset.biomeCommonalities.TryAdd(biomeDef.defName, 10);
+
+            tmpWorldGenerationPreset.biomeScoreOffsets.TryAdd(biomeDef.defName, 0);
+        }
     }
 
-    private static void DoSlider(float x, ref float num, float width2, string label, ref float field, string leftLabel)
+    private static void doSlider(float x, ref float num, float width2, string label, ref float field, string leftLabel)
     {
         num += 40f;
         var labelRect = new Rect(x, num, 200f, 30f);
@@ -745,11 +1019,24 @@ public static class Page_CreateWorldParams_DoWindowContents
             "PlanetRainfall_Normal".Translate(), leftLabel, "PlanetRainfall_High".Translate(), 0.1f);
     }
 
-    private static void DoBiomeSliders(BiomeDef biomeDef, float x, ref float num, string label)
+    private static void doBiomeSliders(BiomeDef biomeDef, float x, ref float num, string label)
     {
+        // Defensive null check
+        if (tmpWorldGenerationPreset is null || tmpWorldGenerationPreset.biomeCommonalities is null ||
+            tmpWorldGenerationPreset.biomeScoreOffsets is null)
+        {
+            return;
+        }
+
         var labelRect = new Rect(x, num - 10, 200f, 30f);
         Widgets.Label(labelRect, label);
         num += 10;
+
+        // Ensure biome entries exist in dictionaries
+        tmpWorldGenerationPreset.biomeCommonalities.TryAdd(biomeDef.defName, 10);
+
+        tmpWorldGenerationPreset.biomeScoreOffsets.TryAdd(biomeDef.defName, 0);
+
         var biomeCommonalityLabel = new Rect(labelRect.x, num + 5, 70, 30);
         var value = tmpWorldGenerationPreset.biomeCommonalities[biomeDef.defName];
         if (value < 10f)

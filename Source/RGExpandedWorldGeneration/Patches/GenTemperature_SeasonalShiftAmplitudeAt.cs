@@ -1,9 +1,10 @@
 ﻿using HarmonyLib;
+using RimWorld.Planet;
 using Verse;
 
 namespace RGExpandedWorldGeneration;
 
-[HarmonyPatch(typeof(GenTemperature), nameof(GenTemperature.SeasonalShiftAmplitudeAt), null)]
+[HarmonyPatch(typeof(GenTemperature), nameof(GenTemperature.SeasonalShiftAmplitudeAt))]
 public static class GenTemperature_SeasonalShiftAmplitudeAt
 {
     public static bool Prefix()
@@ -12,7 +13,7 @@ public static class GenTemperature_SeasonalShiftAmplitudeAt
     }
 
     [HarmonyPriority(int.MaxValue)]
-    public static void Postfix(int tile, ref float __result)
+    public static void Postfix(PlanetTile tile, ref float __result)
     {
         if (Find.WorldGrid.LongLatOf(tile).y >= 0f)
         {

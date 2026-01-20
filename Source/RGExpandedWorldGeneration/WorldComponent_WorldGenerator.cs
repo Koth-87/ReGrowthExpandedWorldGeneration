@@ -6,7 +6,7 @@ namespace RGExpandedWorldGeneration;
 
 public class WorldComponent_WorldGenerator : WorldComponent
 {
-    public static readonly Dictionary<AxialTilt, SimpleCurve> mappedValues = new Dictionary<AxialTilt, SimpleCurve>
+    public static readonly Dictionary<AxialTilt, SimpleCurve> mappedValues = new()
     {
         {
             AxialTilt.VeryLow, [
@@ -48,16 +48,16 @@ public class WorldComponent_WorldGenerator : WorldComponent
     public static WorldComponent_WorldGenerator Instance;
     public AxialTilt axialTilt = AxialTilt.Normal;
 
-    public bool worldGenerated;
+    private bool worldGenerated;
 
     public WorldComponent_WorldGenerator(World world) : base(world)
     {
         Instance = this;
     }
 
-    public override void FinalizeInit()
+    public override void FinalizeInit(bool fromLoad)
     {
-        base.FinalizeInit();
+        base.FinalizeInit(fromLoad);
         if (worldGenerated || RGExpandedWorldGenerationSettings.curWorldGenerationPreset == null)
         {
             return;

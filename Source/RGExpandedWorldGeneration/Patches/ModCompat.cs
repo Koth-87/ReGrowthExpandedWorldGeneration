@@ -9,7 +9,6 @@ public static class ModCompat
 
     static ModCompat()
     {
-        MyLittlePlanetActive =
-            ModLister.GetActiveModWithIdentifier("Oblitus.MyLittlePlanet") != null;
+        MyLittlePlanetActive = ModLister.GetActiveModWithIdentifier("Oblitus.MyLittlePlanet", true) != null;
     }
 }

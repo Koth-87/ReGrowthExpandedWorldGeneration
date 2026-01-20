@@ -15,15 +15,9 @@ public class Dialog_PresetList_Save : Dialog_PresetList
 
     protected override void DoPresetInteraction(string name)
     {
-        if (RGExpandedWorldGenerationSettingsMod.settings == null)
-        {
-            RGExpandedWorldGenerationSettingsMod.settings = new RGExpandedWorldGenerationSettings();
-        }
+        RGExpandedWorldGenerationSettingsMod.settings ??= new RGExpandedWorldGenerationSettings();
 
-        if (RGExpandedWorldGenerationSettingsMod.settings.presets == null)
-        {
-            RGExpandedWorldGenerationSettingsMod.settings.presets = new Dictionary<string, WorldGenerationPreset>();
-        }
+        RGExpandedWorldGenerationSettingsMod.settings.presets ??= new Dictionary<string, WorldGenerationPreset>();
 
         if (RGExpandedWorldGenerationSettings.curWorldGenerationPreset == null)
         {

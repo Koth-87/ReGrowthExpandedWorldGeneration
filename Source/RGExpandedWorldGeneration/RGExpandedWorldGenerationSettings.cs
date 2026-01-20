@@ -7,7 +7,7 @@ internal class RGExpandedWorldGenerationSettings : ModSettings
 {
     public static WorldGenerationPreset curWorldGenerationPreset;
 
-    public Dictionary<string, WorldGenerationPreset> presets = new Dictionary<string, WorldGenerationPreset>();
+    public Dictionary<string, WorldGenerationPreset> presets = new();
     public bool showPreview = true;
 
     public override void ExposeData()

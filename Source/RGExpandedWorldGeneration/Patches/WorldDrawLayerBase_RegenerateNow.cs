@@ -5,8 +5,8 @@ using Verse;
 
 namespace RGExpandedWorldGeneration;
 
-[HarmonyPatch(typeof(WorldLayer), nameof(WorldLayer.RegenerateNow))]
-public static class RegenerateNow_Patch
+[HarmonyPatch(typeof(WorldDrawLayerBase), nameof(WorldDrawLayerBase.RegenerateNow))]
+public static class WorldDrawLayerBase_RegenerateNow
 {
     public static bool Prefix()
     {

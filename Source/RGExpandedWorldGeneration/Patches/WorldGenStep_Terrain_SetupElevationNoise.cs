@@ -5,7 +5,7 @@ using Verse;
 namespace RGExpandedWorldGeneration;
 
 [HarmonyPatch(typeof(WorldGenStep_Terrain), nameof(WorldGenStep_Terrain.SetupElevationNoise))]
-public static class SetupElevationNoise_Patch
+public static class WorldGenStep_Terrain_SetupElevationNoise
 {
     public static void Prefix(ref FloatRange ___ElevationRange)
     {

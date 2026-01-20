@@ -33,7 +33,7 @@ public static class WorldGenStep_Rivers_GenerateRivers
         }
     }
 
-    public struct RiverData
+    private struct RiverData
     {
         public float spawnChance;
         public float[] branchChance;

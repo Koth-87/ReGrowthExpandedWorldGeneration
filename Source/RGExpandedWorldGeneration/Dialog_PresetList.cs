@@ -27,7 +27,7 @@ public abstract class Dialog_PresetList : Window
 
     protected const float NameTextFieldButtonSpace = 20f;
 
-    private static readonly Color DefaultFileTextColor = new Color(1f, 1f, 0.6f);
+    private static readonly Color DefaultFileTextColor = new(1f, 1f, 0.6f);
 
     protected readonly Page_CreateWorldParams parent;
 
@@ -50,12 +50,12 @@ public abstract class Dialog_PresetList : Window
         this.parent = parent;
     }
 
-    public override Vector2 InitialSize => new Vector2(620f, 700f);
+    public override Vector2 InitialSize => new(620f, 700f);
     protected virtual bool ShouldDoTypeInField => false;
 
     public override void DoWindowContents(Rect inRect)
     {
-        var vector = new Vector2(inRect.width - 16f, 40f);
+        var vector = new Vector2(inRect.width - 16f, EntryHeight);
         var y = vector.y;
         var presets = RGExpandedWorldGenerationSettingsMod.settings.presets;
         var height = presets.Count * y;
@@ -81,7 +81,8 @@ public abstract class Dialog_PresetList : Window
                 }
 
                 GUI.BeginGroup(rect);
-                var rect2 = new Rect(rect.width - 36f, (rect.height - 36f) / 2f, 36f, 36f);
+                var rect2 = new Rect(rect.width - InteractButHeight, (rect.height - InteractButHeight) / 2f,
+                    InteractButHeight, InteractButHeight);
                 if (Widgets.ButtonImage(rect2, TexButton.Delete, Color.white, GenUI.SubtleMouseoverColor))
                 {
                     Find.WindowStack.Add(Dialog_MessageBox.CreateConfirmation("ConfirmDelete".Translate(preset),
@@ -89,16 +90,18 @@ public abstract class Dialog_PresetList : Window
                 }
 
                 Text.Font = GameFont.Small;
-                var rect3 = new Rect(rect2.x - 100f, (rect.height - 36f) / 2f, 100f, 36f);
+                var rect3 = new Rect(rect2.x - InteractButWidth, (rect.height - InteractButHeight) / 2f,
+                    InteractButWidth, InteractButHeight);
                 if (Widgets.ButtonText(rect3, interactButLabel))
                 {
                     DoPresetInteraction(preset);
                 }
 
-                var rect4 = new Rect(rect3.x - 94f, 0f, 94f, rect.height);
+                var rect4 = new Rect(rect3.x - FileInfoWidth, 0f, FileInfoWidth, rect.height);
                 GUI.color = Color.white;
                 Text.Anchor = TextAnchor.UpperLeft;
-                var rect5 = new Rect(8f, 0f, rect4.x - 8f - 4f, rect.height);
+                var rect5 = new Rect(FileNameLeftMargin, 0f, rect4.x - FileNameLeftMargin - FileNameRightMargin,
+                    rect.height);
                 Text.Anchor = TextAnchor.MiddleLeft;
                 Text.Font = GameFont.Small;
                 Widgets.Label(rect5, preset.Truncate(rect5.width * 1.8f));
@@ -125,7 +128,7 @@ public abstract class Dialog_PresetList : Window
         Text.Font = GameFont.Small;
         Text.Anchor = TextAnchor.MiddleLeft;
         GUI.SetNextControlName("MapNameField");
-        var str = Widgets.TextField(new Rect(5f, y, 400f, 35f), typingName);
+        var str = Widgets.TextField(new Rect(5f, y, NameTextFieldWidth, NameTextFieldHeight), typingName);
         if (GenText.IsValidFilename(str))
         {
             typingName = str;
@@ -137,7 +140,9 @@ public abstract class Dialog_PresetList : Window
             focusedNameArea = true;
         }
 
-        if (Widgets.ButtonText(new Rect(420f, y, rect.width - 400f - 20f, 35f), "SaveGameButton".Translate()) ||
+        if (Widgets.ButtonText(
+                new Rect(420f, y, rect.width - NameTextFieldWidth - NameTextFieldButtonSpace, NameTextFieldHeight),
+                "SaveGameButton".Translate()) ||
             Event.current.type == EventType.KeyDown && Event.current.keyCode == KeyCode.Return)
         {
             if (typingName.NullOrEmpty())

@@ -1,4 +1,5 @@
-﻿using HarmonyLib;
+﻿using System.Reflection;
+using HarmonyLib;
 using Verse;
 
 namespace RGExpandedWorldGeneration;
@@ -8,6 +9,6 @@ internal static class HarmonyInit
 {
     static HarmonyInit()
     {
-        new Harmony("RGExpandedWorldGeneration.Mod").PatchAll();
+        new Harmony("RGExpandedWorldGeneration.Mod").PatchAll(Assembly.GetExecutingAssembly());
     }
 }

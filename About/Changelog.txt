@@ -1,5 +1,8 @@
 # Changelog for ReGrowthExpandedWorldGeneration
 
+1.6.0 - Updated for 1.6, added progressbar to the preview generation
+
+
 1.5.2 - Increased the max world tile info-box, via Taran
 
 
