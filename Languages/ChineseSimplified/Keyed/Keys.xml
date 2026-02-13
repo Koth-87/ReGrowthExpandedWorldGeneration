@@ -18,4 +18,8 @@
   <RG.SavePreset>保存预设</RG.SavePreset>
   <RG.LoadPreset>加载预设</RG.LoadPreset>
   <RG.HidePreview>显示/隐藏世界预览</RG.HidePreview>
+  <RG.ExpandedSettings>扩展设置</RG.ExpandedSettings>
+  <RG.OpenSettings>打开设置</RG.OpenSettings>
+  <RG.OpenSettingsTooltip>打开扩展世界生成设置对话框</RG.OpenSettingsTooltip>
+  <RG.ExpandedWorldGenSettings>扩展世界生成设置</RG.ExpandedWorldGenSettings>
 </LanguageData>

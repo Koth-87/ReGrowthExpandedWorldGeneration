@@ -1,5 +1,9 @@
 # Changelog for ReGrowthExpandedWorldGeneration
 
+1.6.1 - Moved the extra sliders to a separate window, along with the load and save-buttons, should be more compatible now
+Used DeepL to update translations for ChineseSimplified, French, German, Russian
+
+
 1.6.0 - Updated for 1.6, added progressbar to the preview generation
 
 

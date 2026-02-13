@@ -17,4 +17,8 @@
   <RG.SavePreset>Save Preset</RG.SavePreset>
   <RG.LoadPreset>Load Preset</RG.LoadPreset>
   <RG.HidePreview>Show/hide world preview</RG.HidePreview>
+  <RG.ExpandedSettings>Expanded Settings</RG.ExpandedSettings>
+  <RG.OpenSettings>Open Settings</RG.OpenSettings>
+  <RG.OpenSettingsTooltip>Open the expanded world generation settings dialog</RG.OpenSettingsTooltip>
+  <RG.ExpandedWorldGenSettings>Expanded World Generation Settings</RG.ExpandedWorldGenSettings>
 </LanguageData>

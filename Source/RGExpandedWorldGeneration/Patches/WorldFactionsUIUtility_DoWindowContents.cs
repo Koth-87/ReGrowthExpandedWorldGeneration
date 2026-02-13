@@ -11,7 +11,7 @@ public static class WorldFactionsUIUtility_DoWindowContents
 
     public static void Prefix(ref Rect rect)
     {
-        var modifier = 0;
+        var modifier = 155;
         if (!RGExpandedWorldGenerationSettingsMod.settings.showPreview)
         {
             modifier = 85;

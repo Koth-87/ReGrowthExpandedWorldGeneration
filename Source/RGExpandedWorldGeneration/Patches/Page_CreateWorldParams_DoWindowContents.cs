@@ -24,12 +24,14 @@ public static class Page_CreateWorldParams_DoWindowContents
     private static readonly Texture2D GeneratePreview = ContentFinder<Texture2D>.Get("UI/GeneratePreview");
     private static readonly Texture2D Visible = ContentFinder<Texture2D>.Get("UI/Visible");
     private static readonly Texture2D InVisible = ContentFinder<Texture2D>.Get("UI/InVisible");
-    private static readonly Texture2D saveTexture2D = ContentFinder<Texture2D>.Get("UI/Misc/BarInstantMarkerRotated");
-    private static readonly Texture2D loadTexture2D = ContentFinder<Texture2D>.Get("UI/Misc/BarInstantMarker");
 
     public static WorldGenerationPreset tmpWorldGenerationPreset;
 
     private static Vector2 scrollPosition;
+
+    // Track vanilla controls end position for dynamic positioning
+    private static float vanillaControlsEndY;
+    private static float vanillaControlsWidth;
 
     public static bool dirty;
 
@@ -199,26 +201,17 @@ public static class Page_CreateWorldParams_DoWindowContents
             }
         }
 
+        // Add Expanded Settings button after mid button
         currentX += buttonSpacer;
-        var savePresetRect = new Rect(currentX, y, Page.BottomButSize.x / 2, Page.BottomButSize.y);
-        string labelSavePreset = "RG.SavePreset".Translate();
-        TooltipHandler.TipRegion(savePresetRect, labelSavePreset);
-        if (Widgets.ButtonImageFitted(savePresetRect, saveTexture2D))
+        var expandedSettingsRect = new Rect(currentX, y, Page.BottomButSize.x, Page.BottomButSize.y);
+        string expandedSettingsLabel = "RG.ExpandedSettings".Translate();
+        TooltipHandler.TipRegion(expandedSettingsRect, "RG.OpenSettingsTooltip".Translate());
+        if (Widgets.ButtonText(expandedSettingsRect, expandedSettingsLabel))
         {
-            var saveWindow = new Dialog_PresetList_Save(window);
-            Find.WindowStack.Add(saveWindow);
+            Find.WindowStack.Add(new Dialog_ExpandedWorldGenSettings(window));
         }
 
-        currentX += Page.BottomButSize.x / 2;
-        var loadPresetRect = new Rect(currentX, y, Page.BottomButSize.x / 2, Page.BottomButSize.y);
-        string labelLoadPreset = "RG.LoadPreset".Translate();
-        TooltipHandler.TipRegion(loadPresetRect, labelLoadPreset);
-        if (Widgets.ButtonImageFitted(loadPresetRect, loadTexture2D))
-        {
-            var loadWindow = new Dialog_PresetList_Load(window);
-            Find.WindowStack.Add(loadWindow);
-        }
-
+        // Randomize button - back in its original position
         var randomizeRect = new Rect(rect.xMax - Page.BottomButSize.x - buttonSpacer, y, Page.BottomButSize.x,
             Page.BottomButSize.y);
         string randomize = "Randomize".Translate();
@@ -270,79 +263,9 @@ public static class Page_CreateWorldParams_DoWindowContents
     private static void DoGui(Page_CreateWorldParams window, ref float num, float width2)
     {
         updateCurPreset(window);
-        num += 40f;
-        doSlider(0, ref num, width2, "RG.RiverDensity".Translate(), ref tmpWorldGenerationPreset.riverDensity,
-            "None".Translate());
 
-        Rect labelRect;
-        if (!ModCompat.MyLittlePlanetActive)
-        {
-            num += 40f;
-            labelRect = new Rect(0, num, 200f, 30f);
-            var slider = new Rect(labelRect.xMax, num, width2, 30f);
-            Widgets.Label(labelRect, "RG.AxialTilt".Translate());
-            tmpWorldGenerationPreset.axialTilt = (AxialTilt)Mathf.RoundToInt(Widgets.HorizontalSlider(slider,
-                (float)tmpWorldGenerationPreset.axialTilt, 0f, AxialTiltUtility.EnumValuesCount - 1, true,
-                "PlanetRainfall_Normal".Translate(), "PlanetRainfall_Low".Translate(),
-                "PlanetRainfall_High".Translate(), 1f));
-        }
-
-        if (RGExpandedWorldGenerationSettingsMod.settings.showPreview)
-        {
-            labelRect = new Rect(0f, num + 40, 80, 30);
-            Widgets.Label(labelRect, "RG.Biomes".Translate());
-            var outRect = new Rect(labelRect.x, labelRect.yMax - 3, width2 + 195,
-                WorldFactionsUIUtility_DoWindowContents.LowerWidgetHeight - 50);
-            var viewRect = new Rect(outRect.x, outRect.y, outRect.width - 16f,
-                (DefDatabase<BiomeDef>.DefCount * 90) + 10);
-            var rect3 = new Rect(outRect.xMax - 200f - 16f, labelRect.y, 200f, Text.LineHeight);
-
-
-            Widgets.DrawBoxSolid(new Rect(outRect.x, outRect.y, outRect.width - 16f, outRect.height), BackgroundColor);
-            Widgets.BeginScrollView(outRect, ref scrollPosition, viewRect);
-            num = outRect.y + 15;
-            foreach (var biomeDef in DefDatabase<BiomeDef>.AllDefs.OrderBy(x => x.label ?? x.defName))
-            {
-                doBiomeSliders(biomeDef, 10, ref num, biomeDef.label?.CapitalizeFirst() ?? biomeDef.defName);
-            }
-
-            num -= 50f;
-            Widgets.EndScrollView();
-            if (tmpWorldGenerationPreset.biomeCommonalities.Any(x => x.Value != 10) ||
-                tmpWorldGenerationPreset.biomeScoreOffsets.Any(y => y.Value != 0))
-            {
-                if (Widgets.ButtonText(rect3, "RG.ResetBiomesToDefault".Translate()))
-                {
-                    tmpWorldGenerationPreset.ResetBiomeCommonalities();
-                    tmpWorldGenerationPreset.ResetBiomeScoreOffsets();
-                }
-            }
-        }
-        else
-        {
-            doSlider(0, ref num, width2, "RG.MountainDensity".Translate(), ref tmpWorldGenerationPreset.mountainDensity,
-                "None".Translate());
-            doSlider(0, ref num, width2, "RG.SeaLevel".Translate(), ref tmpWorldGenerationPreset.seaLevel,
-                "None".Translate());
-            doSlider(0, ref num, width2, "RG.AncientRoadDensity".Translate(),
-                ref tmpWorldGenerationPreset.ancientRoadDensity, "None".Translate());
-            doSlider(0, ref num, width2, "RG.FactionRoadDensity".Translate(),
-                ref tmpWorldGenerationPreset.factionRoadDensity, "None".Translate());
-            if (!ModCompat.MyLittlePlanetActive)
-            {
-                return;
-            }
-
-            num += 40;
-            labelRect = new Rect(0, num, 200f, 30f);
-            var slider = new Rect(labelRect.xMax, num, 256, 30f);
-            Widgets.Label(labelRect, "RG.AxialTilt".Translate());
-            tmpWorldGenerationPreset.axialTilt = (AxialTilt)Mathf.RoundToInt(Widgets.HorizontalSlider(slider,
-                (float)tmpWorldGenerationPreset.axialTilt, 0f, AxialTiltUtility.EnumValuesCount - 1, true,
-                "PlanetRainfall_Normal".Translate(), "PlanetRainfall_Low".Translate(),
-                "PlanetRainfall_High".Translate(), 1f));
-        }
-
+        // Settings are now accessed via the bottom button bar, so this method just handles
+        // the world generation settings synchronization
         if (RGExpandedWorldGenerationSettings.curWorldGenerationPreset is null)
         {
             RGExpandedWorldGenerationSettings.curWorldGenerationPreset = tmpWorldGenerationPreset.MakeCopy();
@@ -378,6 +301,10 @@ public static class Page_CreateWorldParams_DoWindowContents
         {
             updatePreviewCounter--;
         }
+
+        // Store the vanilla controls height for use in positioning biome settings
+        vanillaControlsEndY = num;
+        vanillaControlsWidth = width2;
     }
 
     private static void doWorldPreviewArea(Page_CreateWorldParams window)
@@ -388,72 +315,53 @@ public static class Page_CreateWorldParams_DoWindowContents
         var hideButtonRect = generateButtonRect;
         hideButtonRect.x += generateButtonRect.width * 1.1f;
         drawHidePreviewButton(window, hideButtonRect);
-        Rect labelRect;
+
         if (RGExpandedWorldGenerationSettingsMod.settings.showPreview)
         {
+            // Position based on vanilla controls end position
+            var yPos = vanillaControlsEndY + 70; // 100px gap after vanilla controls
+            var heightRemaining = 650 - yPos; // Calculate remaining height (630 is approximate bottom button area)
+            drawBiomeRect(new Rect(0, yPos, vanillaControlsWidth + 195, heightRemaining), new Rect(0, 0, 0, 0),
+                true);
             drawGeneratePreviewButton(window, generateButtonRect);
             var numAttempt = 0;
-            if (thread is null && Find.World != null && Find.World.info.name != "DefaultWorldName" ||
-                worldPreview != null)
-            {
-                if (dirty)
-                {
-                    while (numAttempt < 5)
-                    {
-                        worldPreview = getWorldCameraPreview(WorldCameraHeight, WorldCameraWidth);
-                        if (worldPreview == null || isBlack(worldPreview))
-                        {
-                            numAttempt++;
-                        }
-                        else
-                        {
-                            dirty = false;
-                            break;
-                        }
-                    }
-                }
-
-                if (worldPreview != null)
-                {
-                    GUI.DrawTexture(previewAreaRect, worldPreview);
-                }
-            }
-
-            var numY = previewAreaRect.yMax - 40;
-            if (tmpWorldGenerationPreset is null)
-            {
-                tmpWorldGenerationPreset = new WorldGenerationPreset();
-                tmpWorldGenerationPreset.Init();
-            }
-
-            doSlider(previewAreaRect.x - 55, ref numY, 256, "RG.MountainDensity".Translate(),
-                ref tmpWorldGenerationPreset.mountainDensity,
-                "None".Translate());
-            doSlider(previewAreaRect.x - 55, ref numY, 256, "RG.SeaLevel".Translate(),
-                ref tmpWorldGenerationPreset.seaLevel,
-                "None".Translate());
-
-            doSlider(previewAreaRect.x - 55, ref numY, 256, "RG.AncientRoadDensity".Translate(),
-                ref tmpWorldGenerationPreset.ancientRoadDensity, "None".Translate());
-            doSlider(previewAreaRect.x - 55, ref numY, 256, "RG.FactionRoadDensity".Translate(),
-                ref tmpWorldGenerationPreset.factionRoadDensity, "None".Translate());
-
-            if (!ModCompat.MyLittlePlanetActive)
+            if ((thread is not null || Find.World == null || Find.World.info.name == "DefaultWorldName") &&
+                worldPreview == null)
             {
                 return;
             }
 
-            numY += 40;
-            labelRect = new Rect(previewAreaRect.x - 55, numY, 200f, 30f);
-            var slider = new Rect(labelRect.xMax, numY, 256, 30f);
-            Widgets.Label(labelRect, "RG.AxialTilt".Translate());
-            tmpWorldGenerationPreset.axialTilt = (AxialTilt)Mathf.RoundToInt(Widgets.HorizontalSlider(slider,
-                (float)tmpWorldGenerationPreset.axialTilt, 0f, AxialTiltUtility.EnumValuesCount - 1, true,
-                "PlanetRainfall_Normal".Translate(), "PlanetRainfall_Low".Translate(),
-                "PlanetRainfall_High".Translate(), 1f));
+            if (dirty)
+            {
+                while (numAttempt < 5)
+                {
+                    worldPreview = getWorldCameraPreview(WorldCameraHeight, WorldCameraWidth);
+                    if (worldPreview == null || isBlack(worldPreview))
+                    {
+                        numAttempt++;
+                    }
+                    else
+                    {
+                        dirty = false;
+                        break;
+                    }
+                }
+            }
+
+            if (worldPreview != null)
+            {
+                GUI.DrawTexture(previewAreaRect, worldPreview);
+            }
+
             return;
         }
 
+        // When preview is hidden, show biome settings on the right side (where preview would be)
+        drawBiomeRect(previewAreaRect, hideButtonRect, false);
+    }
+
+    private static void drawBiomeRect(Rect baseRect, Rect hideButtonRect, bool positionOnLeft)
+    {
         // Ensure tmpWorldGenerationPreset is initialized before using it
         if (tmpWorldGenerationPreset is null)
         {
@@ -461,11 +369,23 @@ public static class Page_CreateWorldParams_DoWindowContents
             tmpWorldGenerationPreset.Init();
         }
 
-        labelRect = new Rect(previewAreaRect.x - 55, previewAreaRect.y + hideButtonRect.height,
-            455, 25);
+        Rect labelRect;
+        Rect outRect;
+
+        if (positionOnLeft)
+        {
+            // Position on left side, below vanilla sliders
+            labelRect = new Rect(baseRect.x, baseRect.y, baseRect.width, 25);
+            outRect = new Rect(labelRect.x, labelRect.yMax - 3, labelRect.width, baseRect.height - 25);
+        }
+        else
+        {
+            // Position on right side (original behavior)
+            labelRect = new Rect(baseRect.x - 55, baseRect.y + hideButtonRect.height, 455, 25);
+            outRect = new Rect(labelRect.x, labelRect.yMax - 3, labelRect.width, baseRect.height);
+        }
+
         Widgets.Label(labelRect, "RG.Biomes".Translate());
-        var outRect = new Rect(labelRect.x, labelRect.yMax - 3, labelRect.width,
-            previewAreaRect.height);
         var viewRect = new Rect(outRect.x, outRect.y, outRect.width - 16f,
             (DefDatabase<BiomeDef>.DefCount * 90) + 10);
         var rect3 = new Rect(outRect.xMax - 200f - 16f, labelRect.y, 200f, Text.LineHeight);
@@ -735,7 +655,7 @@ public static class Page_CreateWorldParams_DoWindowContents
                 Rand.Seed = Gen.HashCombineInt(seed, item.setupStep.SeedPart);
                 Log.Message($"[RG] generateWorld: Running setup step: {item.defName}");
                 item.setupStep.GenerateFresh();
-                previewStepsDone++;
+                Interlocked.Increment(ref previewStepsDone);
             }
 
             // Check both Current.CreatingWorld.grid and Find.WorldGrid for layers
@@ -754,7 +674,7 @@ public static class Page_CreateWorldParams_DoWindowContents
                     totalWorldGenSteps += layerKvp.Value.Def.GenStepsInOrder.Count(s => worldGenStepDefs.Contains(s));
                 }
 
-                previewStepsTotal += totalWorldGenSteps;
+                Interlocked.Add(ref previewStepsTotal, totalWorldGenSteps);
             }
             catch
             {
@@ -797,7 +717,7 @@ public static class Page_CreateWorldParams_DoWindowContents
                             Current.CreatingWorld.factionManager.ofPlayer = prevFaction;
                         }
 
-                        previewStepsDone++;
+                        Interlocked.Increment(ref previewStepsDone);
                     }
                     catch (Exception ex)
                     {
@@ -841,7 +761,7 @@ public static class Page_CreateWorldParams_DoWindowContents
             MemoryUtility.UnloadUnusedUnityAssets();
             Log.Message("[RG] generateWorld: World generation completed successfully");
             // Ensure progress bar completes
-            previewStepsDone = previewStepsTotal;
+            Interlocked.Exchange(ref previewStepsDone, previewStepsTotal);
         }
         catch (Exception ex)
         {

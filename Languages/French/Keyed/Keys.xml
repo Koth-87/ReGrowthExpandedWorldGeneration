@@ -18,4 +18,8 @@
   <RG.SavePreset>Sauvegarder la présélection</RG.SavePreset>
   <RG.LoadPreset>Chargement de la présélection</RG.LoadPreset>
   <RG.HidePreview>Afficher/masquer l'aperçu du monde</RG.HidePreview>
+  <RG.ExpandedSettings>Paramètres étendus</RG.ExpandedSettings>
+  <RG.OpenSettings>Ouvrir les paramètres</RG.OpenSettings>
+  <RG.OpenSettingsTooltip>Ouvrir le dialogue de paramétrage de la génération de mondes étendus</RG.OpenSettingsTooltip>
+  <RG.ExpandedWorldGenSettings>Paramètres de la génération de mondes étendus</RG.ExpandedWorldGenSettings>
 </LanguageData>

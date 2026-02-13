@@ -18,4 +18,8 @@
   <RG.SavePreset>Сохранить предустановку</RG.SavePreset>
   <RG.LoadPreset>Загрузка предустановки</RG.LoadPreset>
   <RG.HidePreview>Показать/скрыть предварительный просмотр мира</RG.HidePreview>
+  <RG.ExpandedSettings>Расширенные настройки</RG.ExpandedSettings>
+  <RG.OpenSettings>Открыть настройки</RG.OpenSettings>
+  <RG.OpenSettingsTooltip>Откройте диалог настроек генерации расширенного мира</RG.OpenSettingsTooltip>
+  <RG.ExpandedWorldGenSettings>Настройки расширенной генерации мира</RG.ExpandedWorldGenSettings>
 </LanguageData>
